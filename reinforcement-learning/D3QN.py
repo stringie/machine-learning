@@ -1,3 +1,4 @@
+#%%
 from __future__ import division
 import gym
 import numpy as np
@@ -9,22 +10,22 @@ import scipy.misc
 import os
 get_ipython().magic(u'matplotlib inline')
 
-
+#%%
 from gridworlder import gameEnv
 
 env = gameEnv(partial=False,size=5)
 
-
+#%%
 class Qnetwork():
     def __init__(self,h_size):
         #The network recieves a frame from the game, flattened into an array.
         #It then resizes it and processes it through four convolutional layers.
         self.scalarInput =  tf.placeholder(shape=[None,21168],dtype=tf.float32)
         self.imageIn = tf.reshape(self.scalarInput,shape=[-1,84,84,3])
-        self.conv1 = slim.conv2d(             inputs=self.imageIn,num_outputs=32,kernel_size=[8,8],stride=[4,4],padding='VALID', biases_initializer=None)
-        self.conv2 = slim.conv2d(             inputs=self.conv1,num_outputs=64,kernel_size=[4,4],stride=[2,2],padding='VALID', biases_initializer=None)
-        self.conv3 = slim.conv2d(             inputs=self.conv2,num_outputs=64,kernel_size=[3,3],stride=[1,1],padding='VALID', biases_initializer=None)
-        self.conv4 = slim.conv2d(             inputs=self.conv3,num_outputs=h_size,kernel_size=[7,7],stride=[1,1],padding='VALID', biases_initializer=None)
+        self.conv1 = slim.conv2d(inputs=self.imageIn,num_outputs=32,kernel_size=[8,8],stride=[4,4],padding='VALID', biases_initializer=None)
+        self.conv2 = slim.conv2d(inputs=self.conv1,num_outputs=64,kernel_size=[4,4],stride=[2,2],padding='VALID', biases_initializer=None)
+        self.conv3 = slim.conv2d(inputs=self.conv2,num_outputs=64,kernel_size=[3,3],stride=[1,1],padding='VALID', biases_initializer=None)
+        self.conv4 = slim.conv2d(inputs=self.conv3,num_outputs=h_size,kernel_size=[7,7],stride=[1,1],padding='VALID', biases_initializer=None)
         
         #We take the output from the final convolutional layer and split it into separate advantage and value streams.
         self.streamAC,self.streamVC = tf.split(self.conv4,2,3)
@@ -52,7 +53,7 @@ class Qnetwork():
         self.trainer = tf.train.AdamOptimizer(learning_rate=0.0001)
         self.updateModel = self.trainer.minimize(self.loss)
 
-
+#%%
 class experience_buffer():
     def __init__(self, buffer_size = 50000):
         self.buffer = []
@@ -81,7 +82,7 @@ def updateTarget(op_holder,sess):
     for op in op_holder:
         sess.run(op)
 
-
+#%%
 batch_size = 32 #How many experiences to use for each training step.
 update_freq = 4 #How often to perform a training step.
 y = .99 #Discount factor on the target Q-values
@@ -96,7 +97,7 @@ path = "./dqn" #The path to save our model to.
 h_size = 512 #The size of the final convolutional layer before splitting it into Advantage and Value streams.
 tau = 0.001 #Rate to update target network toward primary network
 
-
+#%%
 tf.reset_default_graph()
 mainQN = Qnetwork(h_size)
 targetQN = Qnetwork(h_size)
@@ -164,7 +165,7 @@ with tf.Session() as sess:
                     doubleQ = Q2[range(batch_size),Q1]
                     targetQ = trainBatch[:,2] + (y*doubleQ * end_multiplier)
                     #Update the network with our target values.
-                    _ = sess.run(mainQN.updateModel,                         feed_dict={mainQN.scalarInput:np.vstack(trainBatch[:,0]),mainQN.targetQ:targetQ, mainQN.actions:trainBatch[:,1]})
+                    _ = sess.run(mainQN.updateModel, feed_dict={mainQN.scalarInput:np.vstack(trainBatch[:,0]),mainQN.targetQ:targetQ, mainQN.actions:trainBatch[:,1]})
                     
                     updateTarget(targetOps,sess) #Update the target network toward the primary network.
             rAll += r
@@ -186,6 +187,7 @@ with tf.Session() as sess:
     saver.save(sess,path+'/model-'+str(i)+'.ckpt')
 print("Percent of succesful episodes: " + str(sum(rList)/num_episodes) + "%")
 
+#%%
 rMat = np.resize(np.array(rList),[len(rList)//100,100])
 rMean = np.average(rMat,1)
 plt.plot(rMean)
