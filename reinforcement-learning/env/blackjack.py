@@ -1,8 +1,3 @@
-
-# coding: utf-8
-
-# In[1]:
-
 import gym
 from gym import spaces
 from gym.utils import seeding
@@ -119,4 +114,3 @@ class BlackjackEnv(gym.Env):
             self.player.append(draw_card(self.np_random))
 
         return self._get_obs()
-

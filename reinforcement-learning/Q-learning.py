@@ -1,9 +1,3 @@
-
-# coding: utf-8
-
-# In[1]:
-
-
 import gym
 import itertools
 import matplotlib
@@ -21,15 +15,7 @@ import plotting
 
 matplotlib.style.use('ggplot')
 
-
-# In[2]:
-
-
 env = BlackjackEnv()
-
-
-# In[3]:
-
 
 def q_learning(env, nepisodes, gamma=1.0, alpha=0.5):
     epsilon = 0.1
@@ -82,15 +68,6 @@ def q_learning(env, nepisodes, gamma=1.0, alpha=0.5):
     
     return Q, stats
 
-
-# In[4]:
-
-
 Q, stats = q_learning(env, 50000)
 
-
-# In[5]:
-
-
 plotting.plot_episode_stats(stats)
-

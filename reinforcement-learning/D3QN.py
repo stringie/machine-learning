@@ -1,9 +1,3 @@
-
-# coding: utf-8
-
-# In[1]:
-
-
 from __future__ import division
 import gym
 import numpy as np
@@ -16,15 +10,9 @@ import os
 get_ipython().magic(u'matplotlib inline')
 
 
-# In[2]:
-
-
 from gridworlder import gameEnv
 
 env = gameEnv(partial=False,size=5)
-
-
-# In[3]:
 
 
 class Qnetwork():
@@ -65,9 +53,6 @@ class Qnetwork():
         self.updateModel = self.trainer.minimize(self.loss)
 
 
-# In[4]:
-
-
 class experience_buffer():
     def __init__(self, buffer_size = 50000):
         self.buffer = []
@@ -81,15 +66,8 @@ class experience_buffer():
     def sample(self,size):
         return np.reshape(np.array(random.sample(self.buffer,size)),[size,5])
 
-
-# In[5]:
-
-
 def processState(states):
     return np.reshape(states,[21168])
-
-
-# In[6]:
 
 
 def updateTargetGraph(tfVars,tau):
@@ -102,9 +80,6 @@ def updateTargetGraph(tfVars,tau):
 def updateTarget(op_holder,sess):
     for op in op_holder:
         sess.run(op)
-
-
-# In[8]:
 
 
 batch_size = 32 #How many experiences to use for each training step.
@@ -120,9 +95,6 @@ load_model = False #Whether to load a saved model.
 path = "./dqn" #The path to save our model to.
 h_size = 512 #The size of the final convolutional layer before splitting it into Advantage and Value streams.
 tau = 0.001 #Rate to update target network toward primary network
-
-
-# In[9]:
 
 
 tf.reset_default_graph()
@@ -214,11 +186,6 @@ with tf.Session() as sess:
     saver.save(sess,path+'/model-'+str(i)+'.ckpt')
 print("Percent of succesful episodes: " + str(sum(rList)/num_episodes) + "%")
 
-
-# In[11]:
-
-
 rMat = np.resize(np.array(rList),[len(rList)//100,100])
 rMean = np.average(rMat,1)
 plt.plot(rMean)
-

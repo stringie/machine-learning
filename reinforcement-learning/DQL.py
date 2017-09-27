@@ -1,9 +1,3 @@
-
-# coding: utf-8
-
-# In[2]:
-
-
 get_ipython().magic(u'matplotlib inline')
 
 import gym
@@ -22,22 +16,9 @@ if "../" not in sys.path:
 import plotting
 from collections import deque, namedtuple
 
-
-# In[4]:
-
-
 env = gym.envs.make("Breakout-v0")
 
-
-# In[5]:
-
-
 VALID_ACTIONS = [0, 1, 2, 3]
-
-
-# In[6]:
-
-
 
 class StateProcessor():
     """
@@ -172,9 +153,6 @@ class Estimator():
         return loss
 
 
-# In[9]:
-
-
 class ModelParametersCopier():
     """
     Copy model parameters of one estimator to another.
@@ -206,9 +184,6 @@ class ModelParametersCopier():
         sess.run(self.update_ops)
 
 
-# In[10]:
-
-
 def make_epsilon_greedy_policy(estimator, nA):
     """
     Creates an epsilon-greedy policy based on a given Q-function approximator and epsilon.
@@ -229,9 +204,6 @@ def make_epsilon_greedy_policy(estimator, nA):
         A[best_action] += (1.0 - epsilon)
         return A
     return policy_fn
-
-
-# In[15]:
 
 
 def deep_q_learning(sess,
@@ -426,10 +398,6 @@ def deep_q_learning(sess,
 
     yield stats
     return
-
-
-# In[ ]:
-
 
 tf.reset_default_graph()
 

@@ -1,9 +1,3 @@
-
-# coding: utf-8
-
-# In[13]:
-
-
 import seaborn as sns
 import numpy as np
 import pandas as pd
@@ -109,22 +103,9 @@ def policy_improvement(transitions, nstates, nactions, policy_eval_fn=evaluate_p
         if policy_stable:
             return policy, V    
 
-
-# In[14]:
-
-
 policy, V = policy_improvement(transitions, nstates, nactions)
-
-
-# In[15]:
-
 
 V.reshape(4,4)
 
-
-# In[16]:
-
-
 print np.reshape(np.argmax(policy, axis=1), np.shape(grid))
 print "up=0, down=1, left=2, right=3"
-

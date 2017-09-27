@@ -1,9 +1,3 @@
-
-# coding: utf-8
-
-# In[1]:
-
-
 get_ipython().magic(u'matplotlib inline')
 
 import gym
@@ -21,14 +15,7 @@ import plotting
 
 matplotlib.style.use('ggplot')
 
-
-# In[2]:
-
-
 env = BlackjackEnv()
-
-
-# In[3]:
 
 
 def mc(env, nepisodes, gamma=1.0, epsilon=0.1):
@@ -74,24 +61,10 @@ def mc(env, nepisodes, gamma=1.0, epsilon=0.1):
     return Q, policy
 
 
-# In[7]:
-
-
 Q, policy = mc(env, 100000)
-
-
-# In[10]:
-
 
 V = defaultdict(float)
 for state, actions in Q.items():
     action_value = np.max(actions)
     V[state] = action_value
 plotting.plot_value_function(V, title="Optimal V")
-
-
-# In[11]:
-
-
-V
-

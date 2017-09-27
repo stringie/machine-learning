@@ -1,9 +1,3 @@
-
-# coding: utf-8
-
-# In[3]:
-
-
 # SARSA-lambda with Gaussian radial basis functions for action-value approximation
 # Implemented for the OpenAI gym mountain-car environment
 # Written by Evan Gravelle
@@ -187,4 +181,3 @@ plt.ylabel('Completion Time')
 plt.xlabel('Episode')
 plt.show()
 env.monitor.close()
-

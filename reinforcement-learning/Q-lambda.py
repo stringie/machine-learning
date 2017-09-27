@@ -1,9 +1,3 @@
-
-# coding: utf-8
-
-# In[4]:
-
-
 import gym
 import itertools
 import matplotlib
@@ -20,14 +14,7 @@ import plotting
 
 matplotlib.style.use('ggplot')
 
-
-# In[5]:
-
-
 env = CliffWalkingEnv()
-
-
-# In[72]:
 
 
 def q_lambda(env, nepisodes, gamma=1.0, alpha=0.5, lmbd = 0.5):
@@ -91,16 +78,7 @@ def q_lambda(env, nepisodes, gamma=1.0, alpha=0.5, lmbd = 0.5):
     
     return Q, stats
 
-
-# In[73]:
-
-
 Q, stats = q_lambda(env, 200)
 print Q[36][0]
 
-
-# In[74]:
-
-
 plotting.plot_episode_stats(stats)
-

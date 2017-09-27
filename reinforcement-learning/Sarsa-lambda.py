@@ -1,9 +1,3 @@
-
-# coding: utf-8
-
-# In[3]:
-
-
 import gym
 import itertools
 import matplotlib
@@ -21,15 +15,7 @@ import plotting
 
 matplotlib.style.use('ggplot')
 
-
-# In[2]:
-
-
 env = CliffWalkingEnv()
-
-
-# In[3]:
-
 
 #lmbd = lambda parameter
 #do not go above 0.8
@@ -90,15 +76,6 @@ def sarsa_lambda(env, nepisodes, gamma=1.0, alpha=0.5, lmbd=0.8):
             
     return Q, stats   
 
-
-# In[28]:
-
-
 Q, stats = sarsa_lambda(env, 90)
 
-
-# In[29]:
-
-
 plotting.plot_episode_stats(stats)
-

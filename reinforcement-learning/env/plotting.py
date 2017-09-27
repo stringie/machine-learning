@@ -1,8 +1,3 @@
-
-# coding: utf-8
-
-# In[ ]:
-
 import matplotlib
 import numpy as np
 import pandas as pd
@@ -101,4 +96,3 @@ def plot_episode_stats(stats, smoothing_window=10, noshow=False):
         plt.show(fig3)
 
     return fig1, fig2, fig3
-

@@ -1,9 +1,3 @@
-
-# coding: utf-8
-
-# In[1]:
-
-
 get_ipython().magic(u'matplotlib inline')
 
 import gym
@@ -23,15 +17,7 @@ from sklearn.kernel_approximation import RBFSampler
 
 matplotlib.style.use('ggplot')
 
-
-# In[2]:
-
-
 env = gym.envs.make("MountainCar-v0")
-
-
-# In[3]:
-
 
 #Feature preprocessing
 observation_examples = np.array([env.observation_space.sample() for x in range(10000)])
@@ -45,10 +31,6 @@ featurizer = sklearn.pipeline.FeatureUnion([
     ("rbf4", RBFSampler(gamma=0.5, n_components=100))
 ])
 featurizer.fit(scaler.transform(observation_examples))
-
-
-# In[4]:
-
 
 class Estimator():
     """
@@ -103,10 +85,6 @@ class Estimator():
         """
         features = self.featurize_state(s)
         self.models[a].partial_fit([features], [y])
-
-
-# In[5]:
-
 
 def q_learning(env, estimator, num_episodes, discount_factor=1.0, epsilon=0.1, epsilon_decay=1.0):
 
@@ -175,22 +153,9 @@ def q_learning(env, estimator, num_episodes, discount_factor=1.0, epsilon=0.1, e
     
     return stats
 
-
-# In[6]:
-
-
 estimator = Estimator()
-
-
-# In[7]:
-
 
 stats = q_learning(env, estimator, 1500, epsilon=0.0)
 
-
-# In[8]:
-
-
 plotting.plot_cost_to_go_mountain_car(env, estimator)
 plotting.plot_episode_stats(stats, smoothing_window=25)
-

@@ -1,14 +1,4 @@
-
-# coding: utf-8
-
-# In[1]:
-
-
 import numpy as np
-
-
-# In[2]:
-
 
 #Training Data:
 trainX = np.array(([3, 5], [6, 2], [10, 2], [6, 1.5], [8, 5], [10, 0], [0, 5], [0, 0], [7.5, 4.5], [10, 1], [11, 0]), dtype=float)
@@ -24,9 +14,6 @@ trainY = trainY/100.
 
 testX = testX / np.amax(trainX, axis=0)
 testY = testY / 100.
-
-
-# In[3]:
 
 
 class Neural_Network(object):
@@ -87,14 +74,7 @@ class Neural_Network(object):
         return np.concatenate((dJdW1.ravel(), dJdW2.ravel()))
 
 
-# In[4]:
-
-
 from scipy import optimize
-
-
-# In[5]:
-
 
 #Modified trainer for testing
 class trainer(object):
@@ -132,32 +112,14 @@ class trainer(object):
         self.N.setParams(_res.x)
         self.optimizationResults = _res
 
-
-# In[6]:
-
-
 NN = Neural_Network()
-
-
-# In[7]:
 
 
 T = trainer(NN)
 
-
-# In[8]:
-
-
 T.train(trainX, trainY, testX, testY)
 
-
-# In[9]:
-
-
 import matplotlib.pyplot as plt
-
-
-# In[10]:
 
 
 #See the optimization plot
@@ -169,25 +131,7 @@ plt.xlabel('Iterations')
 plt.show()
 
 
-# In[11]:
-
-
 NN.forward(trainX)
-
-
-# In[12]:
-
-
-trainY
-
-
-# In[13]:
-
-
-#IT FUCKIN WORKS
-
-
-# In[14]:
 
 
 hoursSleep = np.linspace(0, 10, 100)
@@ -202,15 +146,7 @@ allInputs = np.zeros((a.size, 2))
 allInputs[:, 0] = a.ravel()
 allInputs[:, 1] = b.ravel()
 
-
-# In[15]:
-
-
 allOutputs = NN.forward(allInputs)
-
-
-# In[16]:
-
 
 #Contour Plot
 yy = np.dot(hoursStudy.reshape(100, 1), np.ones((1, 100)))
@@ -221,4 +157,3 @@ plt.clabel(CS, inline=1, fontsize=10)
 plt.xlabel('Hours Sleep')
 plt.ylabel('Hours Study')
 plt.show()
-

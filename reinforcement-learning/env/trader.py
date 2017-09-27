@@ -1,9 +1,3 @@
-
-# coding: utf-8
-
-# In[123]:
-
-
 import gym
 import pyscreenshot as psc
 import pytesseract as pt
@@ -14,9 +8,6 @@ import matplotlib.pyplot as plt
 from collections import deque
 from gym import spaces
 from gym.utils import seeding
-
-
-# In[156]:
 
 
 class TraderEnv(gym.Env):
@@ -92,4 +83,3 @@ class TraderEnv(gym.Env):
         im = psc.grab(bbox=(100,164,207,188))
         price = float(pt.image_to_string(im).replace(" ", ""))
         return price
-

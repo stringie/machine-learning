@@ -1,9 +1,3 @@
-
-# coding: utf-8
-
-# In[6]:
-
-
 import gym
 import itertools
 import matplotlib
@@ -22,14 +16,7 @@ import plotting
 
 matplotlib.style.use('ggplot')
 
-
-# In[17]:
-
-
 env = CliffWalkingEnv()
-
-
-# In[18]:
 
 
 def sarsa(env, nepisodes, gamma=1.0, alpha=0.8):
@@ -79,14 +66,6 @@ def sarsa(env, nepisodes, gamma=1.0, alpha=0.8):
     return Q, stats          
 
 
-# In[19]:
-
-
 Q, stats = sarsa(env, 500)
 
-
-# In[20]:
-
-
 plotting.plot_episode_stats(stats)
-
