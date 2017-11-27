@@ -14,7 +14,7 @@ data = pd.read_csv(dataset_url, sep=';')
 #%%
 data.quality.value_counts().plot(kind='bar')
 #%%
-y = data.quality
+	y = data.quality
 x = data.drop('quality', axis=1)
 X_train, X_test, y_train, y_test = train_test_split(x, y, 
                                                     test_size=0.2, 
