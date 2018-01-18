@@ -1,12 +1,14 @@
 #%%
-# %matplotlib inline
+%matplotlib inline
 
 import gym
+from gym.wrappers import Monitor
 import itertools
 import numpy as np
 import os
 import random
 import sys
+import psutil
 import tensorflow as tf
 
 envpath = "/home/string/dev/machine-learning/reinforcement-learning"
@@ -16,12 +18,11 @@ if envpath not in sys.path:
 from envs import plotting
 from collections import deque, namedtuple
 #%%
-env = gym.make("Breakout-v0")
+env = gym.envs.make("Breakout-v0")
 #%%
-# Actions for Breakout are [Noop, Fire, Left, Right]
-VALID_ACTIONS = [0,1,2,3]
+# Atari Actions: 0 (noop), 1 (fire), 2 (left) and 3 (right) are valid actions
+VALID_ACTIONS = [0, 1, 2, 3]
 #%%
-
 class StateProcessor():
     """
     Processes a raw Atari images. Resizes it and converts it to grayscale.
@@ -33,7 +34,7 @@ class StateProcessor():
             self.output = tf.image.rgb_to_grayscale(self.input_state)
             self.output = tf.image.crop_to_bounding_box(self.output, 34, 0, 160, 160)
             self.output = tf.image.resize_images(
-                self.output, 84, 84, method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+                self.output, [84, 84], method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
             self.output = tf.squeeze(self.output)
 
     def process(self, sess, state):
@@ -64,7 +65,7 @@ class Estimator():
                 summary_dir = os.path.join(summaries_dir, "summaries_{}".format(scope))
                 if not os.path.exists(summary_dir):
                     os.makedirs(summary_dir)
-                self.summary_writer = tf.train.SummaryWriter(summary_dir)
+                self.summary_writer = tf.summary.FileWriter(summary_dir)
 
     def _build_model(self):
         """
@@ -80,18 +81,40 @@ class Estimator():
         self.actions_pl = tf.placeholder(shape=[None], dtype=tf.int32, name="actions")
 
         X = tf.to_float(self.X_pl) / 255.0
-        
-        # TODO: Implement the Tensorflow graph!
         batch_size = tf.shape(self.X_pl)[0]
-        self.predictions = tf.zeros(shape=[batch_size, len(VALID_ACTIONS)])
-        self.loss = tf.constant(0.0)
-        self.train_op = tf.no_op("train_pp")
-        
-        # Summaries for Tensorboard
-        self.summaries = tf.merge_summary([
-            tf.scalar_summary("loss", self.loss)
-        ])
 
+        # Three convolutional layers
+        conv1 = tf.contrib.layers.conv2d(
+            X, 32, 8, 4, activation_fn=tf.nn.relu)
+        conv2 = tf.contrib.layers.conv2d(
+            conv1, 64, 4, 2, activation_fn=tf.nn.relu)
+        conv3 = tf.contrib.layers.conv2d(
+            conv2, 64, 3, 1, activation_fn=tf.nn.relu)
+
+        # Fully connected layers
+        flattened = tf.contrib.layers.flatten(conv3)
+        fc1 = tf.contrib.layers.fully_connected(flattened, 512)
+        self.predictions = tf.contrib.layers.fully_connected(fc1, len(VALID_ACTIONS))
+
+        # Get the predictions for the chosen actions only
+        gather_indices = tf.range(batch_size) * tf.shape(self.predictions)[1] + self.actions_pl
+        self.action_predictions = tf.gather(tf.reshape(self.predictions, [-1]), gather_indices)
+
+        # Calcualte the loss
+        self.losses = tf.squared_difference(self.y_pl, self.action_predictions)
+        self.loss = tf.reduce_mean(self.losses)
+
+        # Optimizer Parameters from original paper
+        self.optimizer = tf.train.RMSPropOptimizer(0.00025, 0.99, 0.0, 1e-6)
+        self.train_op = self.optimizer.minimize(self.loss, global_step=tf.contrib.framework.get_global_step())
+
+        # Summaries for Tensorboard
+        self.summaries = tf.summary.merge([
+            tf.summary.scalar("loss", self.loss),
+            tf.summary.histogram("loss_hist", self.losses),
+            tf.summary.histogram("q_values_hist", self.predictions),
+            tf.summary.scalar("max_q_value", tf.reduce_max(self.predictions))
+        ])
 
     def predict(self, sess, s):
         """
@@ -128,28 +151,36 @@ class Estimator():
             self.summary_writer.add_summary(summaries, global_step)
         return loss
 #%%
-def copy_model_parameters(sess, estimator1, estimator2):
+class ModelParametersCopier():
     """
-    Copies the model parameters of one estimator to another.
-
-    Args:
-      sess: Tensorflow session instance
-      estimator1: Estimator to copy the paramters from
-      estimator2: Estimator to copy the parameters to
+    Copy model parameters of one estimator to another.
     """
-    e1_params = [t for t in tf.trainable_variables() if t.name.startswith(estimator1.scope)]
-    e1_params = sorted(e1_params, key=lambda v: v.name)
-    e2_params = [t for t in tf.trainable_variables() if t.name.startswith(estimator2.scope)]
-    e2_params = sorted(e2_params, key=lambda v: v.name)
+    
+    def __init__(self, estimator1, estimator2):
+        """
+        Defines copy-work operation graph.  
+        Args:
+          estimator1: Estimator to copy the paramters from
+          estimator2: Estimator to copy the parameters to
+        """
+        e1_params = [t for t in tf.trainable_variables() if t.name.startswith(estimator1.scope)]
+        e1_params = sorted(e1_params, key=lambda v: v.name)
+        e2_params = [t for t in tf.trainable_variables() if t.name.startswith(estimator2.scope)]
+        e2_params = sorted(e2_params, key=lambda v: v.name)
 
-    update_ops = []
-    for e1_v, e2_v in zip(e1_params, e2_params):
-        op = e2_v.assign(e1_v)
-        update_ops.append(op)
-
-    sess.run(update_ops)
+        self.update_ops = []
+        for e1_v, e2_v in zip(e1_params, e2_params):
+            op = e2_v.assign(e1_v)
+            self.update_ops.append(op)
+            
+    def make(self, sess):
+        """
+        Makes copy.
+        Args:
+            sess: Tensorflow session instance
+        """
+        sess.run(self.update_ops)
 #%%
-
 def make_epsilon_greedy_policy(estimator, nA):
     """
     Creates an epsilon-greedy policy based on a given Q-function approximator and epsilon.
@@ -220,17 +251,23 @@ def deep_q_learning(sess,
 
     # The replay memory
     replay_memory = []
+    
+    # Make model copier object
+    estimator_copy = ModelParametersCopier(q_estimator, target_estimator)
 
     # Keeps track of useful statistics
     stats = plotting.EpisodeStats(
         episode_lengths=np.zeros(num_episodes),
         episode_rewards=np.zeros(num_episodes))
+    
+    # For 'system/' summaries, usefull to check if currrent process looks healthy
+    current_process = psutil.Process()
 
     # Create directories for checkpoints and summaries
     checkpoint_dir = os.path.join(experiment_dir, "checkpoints")
     checkpoint_path = os.path.join(checkpoint_dir, "model")
     monitor_path = os.path.join(experiment_dir, "monitor")
-
+    
     if not os.path.exists(checkpoint_dir):
         os.makedirs(checkpoint_dir)
     if not os.path.exists(monitor_path):
@@ -260,7 +297,7 @@ def deep_q_learning(sess,
     state = state_processor.process(sess, state)
     state = np.stack([state] * 4, axis=2)
     for i in range(replay_memory_init_size):
-        action_probs = policy(sess, state, epsilons[total_t])
+        action_probs = policy(sess, state, epsilons[min(total_t, epsilon_decay_steps-1)])
         action = np.random.choice(np.arange(len(action_probs)), p=action_probs)
         next_state, reward, done, _ = env.step(VALID_ACTIONS[action])
         next_state = state_processor.process(sess, next_state)
@@ -273,10 +310,10 @@ def deep_q_learning(sess,
         else:
             state = next_state
 
+
     # Record videos
-    env.monitor.start(monitor_path,
-                      resume=True,
-                      video_callable=lambda count: count % record_video_every == 0)
+    # Add env Monitor wrapper
+    env = Monitor(env, directory=monitor_path, video_callable=lambda count: count % record_video_every == 0, resume=True)
 
     for i_episode in range(num_episodes):
 
@@ -295,19 +332,14 @@ def deep_q_learning(sess,
             # Epsilon for this time step
             epsilon = epsilons[min(total_t, epsilon_decay_steps-1)]
 
-            # Add epsilon to Tensorboard
-            episode_summary = tf.Summary()
-            episode_summary.value.add(simple_value=epsilon, tag="epsilon")
-            q_estimator.summary_writer.add_summary(episode_summary, total_t)
-
             # Maybe update the target estimator
             if total_t % update_target_estimator_every == 0:
-                copy_model_parameters(sess, q_estimator, target_estimator)
+                estimator_copy.make(sess)
                 print("\nCopied model parameters to target network.")
 
             # Print out which step we're on, useful for debugging.
             print("\rStep {} ({}) @ Episode {}/{}, loss: {}".format(
-                    t, total_t, i_episode + 1, num_episodes, loss))
+                    t, total_t, i_episode + 1, num_episodes, loss), end="")
             sys.stdout.flush()
 
             # Take a step
@@ -333,12 +365,10 @@ def deep_q_learning(sess,
             states_batch, action_batch, reward_batch, next_states_batch, done_batch = map(np.array, zip(*samples))
 
             # Calculate q values and targets
-            # This is where Double Q-Learning comes in!
             q_values_next = q_estimator.predict(sess, next_states_batch)
             best_actions = np.argmax(q_values_next, axis=1)
             q_values_next_target = target_estimator.predict(sess, next_states_batch)
-            targets_batch = reward_batch + np.invert(done_batch).astype(np.float32) * \
-                discount_factor * q_values_next_target[np.arange(batch_size), best_actions]
+            targets_batch = reward_batch + np.invert(done_batch).astype(np.float32) * discount_factor * q_values_next_target[np.arange(batch_size), best_actions]
 
             # Perform gradient descent update
             states_batch = np.array(states_batch)
@@ -352,18 +382,19 @@ def deep_q_learning(sess,
 
         # Add summaries to tensorboard
         episode_summary = tf.Summary()
-        episode_summary.value.add(simple_value=stats.episode_rewards[i_episode], node_name="episode_reward", tag="episode_reward")
-        episode_summary.value.add(simple_value=stats.episode_lengths[i_episode], node_name="episode_length", tag="episode_length")
-        q_estimator.summary_writer.add_summary(episode_summary, total_t)
+        episode_summary.value.add(simple_value=epsilon, tag="episode/epsilon")
+        episode_summary.value.add(simple_value=stats.episode_rewards[i_episode], tag="episode/reward")
+        episode_summary.value.add(simple_value=stats.episode_lengths[i_episode], tag="episode/length")
+        episode_summary.value.add(simple_value=current_process.cpu_percent(), tag="system/cpu_usage_percent")
+        episode_summary.value.add(simple_value=current_process.memory_percent(memtype="vms"), tag="system/v_memeory_usage_percent")
+        q_estimator.summary_writer.add_summary(episode_summary, i_episode)
         q_estimator.summary_writer.flush()
-
+        
         yield total_t, plotting.EpisodeStats(
             episode_lengths=stats.episode_lengths[:i_episode+1],
             episode_rewards=stats.episode_rewards[:i_episode+1])
 
-    env.monitor.close()
     return stats
-
 #%%
 tf.reset_default_graph()
 
@@ -374,7 +405,7 @@ experiment_dir = os.path.abspath("./experiments/{}".format(env.spec.id))
 global_step = tf.Variable(0, name='global_step', trainable=False)
     
 # Create estimators
-q_estimator = Estimator(scope="q", summaries_dir=experiment_dir)
+q_estimator = Estimator(scope="q_estimator", summaries_dir=experiment_dir)
 target_estimator = Estimator(scope="target_q")
 
 # State processor
@@ -382,7 +413,7 @@ state_processor = StateProcessor()
 
 # Run it!
 with tf.Session() as sess:
-    sess.run(tf.initialize_all_variables())
+    sess.run(tf.global_variables_initializer())
     for t, stats in deep_q_learning(sess,
                                     env,
                                     q_estimator=q_estimator,
