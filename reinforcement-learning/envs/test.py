@@ -1,17 +1,9 @@
 #%%
-import gym
-import pyscreenshot as psc
-import pytesseract as pt
-import pyautogui as pag
-import threading
-import time
-import matplotlib.pyplot as plt
-from collections import deque
-from gym import spaces
-from gym.utils import seeding
+import numpy as np
 
-im = psc.grab(bbox=(100,164,207,188))
-im.save("/home/string/image.png")
-price = pt.image_to_string(im).replace(" ", "")
+arr = np.array([1,2,3])
+arr2 = np.array([3,2,1])
 
-print(price)
+arr3 = [1,-2,-3]
+
+print(np.abs(arr3))

@@ -15,7 +15,7 @@ envpath = "/home/string/dev/machine-learning/reinforcement-learning"
 if envpath not in sys.path:
   sys.path.append(envpath)
 
-from envs import plotting
+from envs import plotting, proportional_replay
 from collections import deque, namedtuple
 #%%
 env = gym.envs.make("Breakout-v0")
@@ -209,15 +209,18 @@ def deep_q_learning(sess,
                     state_processor,
                     num_episodes,
                     experiment_dir,
-                    replay_memory_size=500000,
+                    replay_memory_size=50000,
                     replay_memory_init_size=50000,
+                    replay_period=5,
                     update_target_estimator_every=10000,
                     discount_factor=0.99,
                     epsilon_start=1.0,
                     epsilon_end=0.1,
                     epsilon_decay_steps=500000,
                     batch_size=32,
-                    record_video_every=50):
+                    record_video_every=50,
+                    alpha=0.6,
+                    beta=0.4):
     """
     Q-Learning algorithm for off-policy TD control using Function Approximation.
     Finds the optimal greedy policy while following an epsilon-greedy policy.
@@ -250,7 +253,7 @@ def deep_q_learning(sess,
     Transition = namedtuple("Transition", ["state", "action", "reward", "next_state", "done"])
 
     # The replay memory
-    replay_memory = []
+    replay_memory = proportional_replay.Experience(replay_memory_size, batch_size,alpha)
     
     # Make model copier object
     estimator_copy = ModelParametersCopier(q_estimator, target_estimator)
@@ -286,6 +289,9 @@ def deep_q_learning(sess,
     # The epsilon decay schedule
     epsilons = np.linspace(epsilon_start, epsilon_end, epsilon_decay_steps)
 
+    # The beta decay schedule
+    betas = np.linspace(beta, 1, epsilon_decay_steps)
+
     # The policy we're following
     policy = make_epsilon_greedy_policy(
         q_estimator,
@@ -296,19 +302,21 @@ def deep_q_learning(sess,
     state = env.reset()
     state = state_processor.process(sess, state)
     state = np.stack([state] * 4, axis=2)
-    for i in range(replay_memory_init_size):
+    for i in range(batch_size*10):
         action_probs = policy(sess, state, epsilons[min(total_t, epsilon_decay_steps-1)])
         action = np.random.choice(np.arange(len(action_probs)), p=action_probs)
         next_state, reward, done, _ = env.step(VALID_ACTIONS[action])
         next_state = state_processor.process(sess, next_state)
         next_state = np.append(state[:,:,1:], np.expand_dims(next_state, 2), axis=2)
-        replay_memory.append(Transition(state, action, reward, next_state, done))
+        replay_memory.add(Transition(state, action, reward, next_state, done), random.random())
         if done:
             state = env.reset()
             state = state_processor.process(sess, state)
             state = np.stack([state] * 4, axis=2)
         else:
             state = next_state
+
+    priority = 1
 
 
     # Record videos
@@ -332,6 +340,9 @@ def deep_q_learning(sess,
             # Epsilon for this time step
             epsilon = epsilons[min(total_t, epsilon_decay_steps-1)]
 
+            # beta for this time step
+            beta = betas[min(total_t, epsilon_decay_steps - 1)]
+
             # Maybe update the target estimator
             if total_t % update_target_estimator_every == 0:
                 estimator_copy.make(sess)
@@ -350,29 +361,39 @@ def deep_q_learning(sess,
             next_state = np.append(state[:,:,1:], np.expand_dims(next_state, 2), axis=2)
 
             # If our replay memory is full, pop the first element
-            if len(replay_memory) == replay_memory_size:
-                replay_memory.pop(0)
+            # if len(replay_memory) == replay_memory_size:
+            #     replay_memory.pop(0)
 
             # Save transition to replay memory
-            replay_memory.append(Transition(state, action, reward, next_state, done))   
+            replay_memory.add(Transition(state, action, reward, next_state, done), priority)   
 
             # Update statistics
             stats.episode_rewards[i_episode] += reward
             stats.episode_lengths[i_episode] = t
 
             # Sample a minibatch from the replay memory
-            samples = random.sample(replay_memory, batch_size)
-            states_batch, action_batch, reward_batch, next_states_batch, done_batch = map(np.array, zip(*samples))
+            # samples = random.sample(replay_memory, batch_size)
+            # states_batch, action_batch, reward_batch, next_states_batch, done_batch = map(np.array, zip(*samples))
 
-            # Calculate q values and targets
-            q_values_next = q_estimator.predict(sess, next_states_batch)
-            best_actions = np.argmax(q_values_next, axis=1)
-            q_values_next_target = target_estimator.predict(sess, next_states_batch)
-            targets_batch = reward_batch + np.invert(done_batch).astype(np.float32) * discount_factor * q_values_next_target[np.arange(batch_size), best_actions]
+            if t % replay_period == 0:
 
-            # Perform gradient descent update
-            states_batch = np.array(states_batch)
-            loss = q_estimator.update(sess, states_batch, action_batch, targets_batch)
+                samples, weights, indeces = replay_memory.select(beta)
+                states_batch, action_batch, reward_batch, next_states_batch, done_batch = map(np.array, zip(*samples))
+
+                # Calculate q values and targets
+                # Also ..... Double Deep Q-Learning
+                q_values_next = q_estimator.predict(sess, next_states_batch)
+                best_actions = np.argmax(q_values_next, axis=1)
+                q_values_next_target = target_estimator.predict(sess, next_states_batch)
+                targets_batch = reward_batch + np.invert(done_batch).astype(np.float32) * discount_factor * q_values_next_target[np.arange(batch_size), best_actions]
+
+                # Update transition priority
+                replay_memory.priority_update(indeces, np.abs(targets_batch))
+
+                # Perform gradient descent update
+                states_batch = np.array(states_batch)
+                samplingWeights = np.array(weights)
+                loss = q_estimator.update(sess, states_batch, action_batch, targets_batch*samplingWeights)
 
             if done:
                 break
