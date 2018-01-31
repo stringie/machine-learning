@@ -1,5 +1,5 @@
 #%%
-%matplotlib inline
+# %matplotlib inline
 
 import gym
 from gym.wrappers import Monitor
@@ -24,9 +24,6 @@ env = gym.envs.make("Breakout-v0")
 VALID_ACTIONS = [0, 1, 2, 3]
 #%%
 class StateProcessor():
-    """
-    Processes a raw Atari images. Resizes it and converts it to grayscale.
-    """
     def __init__(self):
         # Build the Tensorflow graph
         with tf.variable_scope("state_processor"):
@@ -38,22 +35,9 @@ class StateProcessor():
             self.output = tf.squeeze(self.output)
 
     def process(self, sess, state):
-        """
-        Args:
-            sess: A Tensorflow session object
-            state: A [210, 160, 3] Atari RGB State
-
-        Returns:
-            A processed [84, 84, 1] state representing grayscale values.
-        """
         return sess.run(self.output, { self.input_state: state })
 #%%
 class Estimator():
-    """Q-Value Estimator neural network.
-
-    This network is used for both the Q-Network and the Target Network.
-    """
-
     def __init__(self, scope="estimator", summaries_dir=None):
         self.scope = scope
         # Writes Tensorboard summaries to disk
@@ -68,10 +52,6 @@ class Estimator():
                 self.summary_writer = tf.summary.FileWriter(summary_dir)
 
     def _build_model(self):
-        """
-        Builds the Tensorflow graph.
-        """
-
         # Placeholders for our input
         # Our input are 4 RGB frames of shape 160, 160 each
         self.X_pl = tf.placeholder(shape=[None, 84, 84, 4], dtype=tf.uint8, name="X")
@@ -91,10 +71,14 @@ class Estimator():
         conv3 = tf.contrib.layers.conv2d(
             conv2, 64, 3, 1, activation_fn=tf.nn.relu)
 
-        # Fully connected layers
+        # Dueling Q-Network
         flattened = tf.contrib.layers.flatten(conv3)
-        fc1 = tf.contrib.layers.fully_connected(flattened, 512)
-        self.predictions = tf.contrib.layers.fully_connected(fc1, len(VALID_ACTIONS))
+        self.advStream = tf.contrib.layers.fully_connected(flattened, 512)
+        self.valStream = tf.contrib.layers.fully_connected(flattened, 512)
+        self.value = tf.contrib.layers.fully_connected(self.valStream, 1)
+        self.advantage = tf.contrib.layers.fully_connected(self.advStream, len(VALID_ACTIONS))
+
+        self.predictions = self.value + tf.subtract(self.advantage, tf.reduce_mean(self.advantage))
 
         # Get the predictions for the chosen actions only
         gather_indices = tf.range(batch_size) * tf.shape(self.predictions)[1] + self.actions_pl
@@ -117,52 +101,20 @@ class Estimator():
         ])
 
     def predict(self, sess, s):
-        """
-        Predicts action values.
-
-        Args:
-          sess: Tensorflow session
-          s: State input of shape [batch_size, 4, 160, 160, 3]
-
-        Returns:
-          Tensor of shape [batch_size, NUM_VALID_ACTIONS] containing the estimated 
-          action values.
-        """
         return sess.run(self.predictions, { self.X_pl: s })
 
     def update(self, sess, s, a, y):
-        """
-        Updates the estimator towards the given targets.
-
-        Args:
-          sess: Tensorflow session object
-          s: State input of shape [batch_size, 4, 160, 160, 3]
-          a: Chosen actions of shape [batch_size]
-          y: Targets of shape [batch_size]
-
-        Returns:
-          The calculated loss on the batch.
-        """
         feed_dict = { self.X_pl: s, self.y_pl: y, self.actions_pl: a }
-        summaries, global_step, _, loss = sess.run(
+        summaries, global_step, _, loss, ps, aps = sess.run(
             [self.summaries, tf.contrib.framework.get_global_step(), self.train_op, self.loss],
             feed_dict)
         if self.summary_writer:
             self.summary_writer.add_summary(summaries, global_step)
+
         return loss
 #%%
 class ModelParametersCopier():
-    """
-    Copy model parameters of one estimator to another.
-    """
-    
     def __init__(self, estimator1, estimator2):
-        """
-        Defines copy-work operation graph.  
-        Args:
-          estimator1: Estimator to copy the paramters from
-          estimator2: Estimator to copy the parameters to
-        """
         e1_params = [t for t in tf.trainable_variables() if t.name.startswith(estimator1.scope)]
         e1_params = sorted(e1_params, key=lambda v: v.name)
         e2_params = [t for t in tf.trainable_variables() if t.name.startswith(estimator2.scope)]
@@ -174,26 +126,9 @@ class ModelParametersCopier():
             self.update_ops.append(op)
             
     def make(self, sess):
-        """
-        Makes copy.
-        Args:
-            sess: Tensorflow session instance
-        """
         sess.run(self.update_ops)
 #%%
 def make_epsilon_greedy_policy(estimator, nA):
-    """
-    Creates an epsilon-greedy policy based on a given Q-function approximator and epsilon.
-
-    Args:
-        estimator: An estimator that returns q values for a given state
-        nA: Number of actions in the environment.
-
-    Returns:
-        A function that takes the (sess, observation, epsilon) as an argument and returns
-        the probabilities for each action in the form of a numpy array of length nA.
-
-    """
     def policy_fn(sess, observation, epsilon):
         A = np.ones(nA, dtype=float) * epsilon / nA
         q_values = estimator.predict(sess, np.expand_dims(observation, 0))[0]
@@ -221,34 +156,6 @@ def deep_q_learning(sess,
                     record_video_every=50,
                     alpha=0.6,
                     beta=0.4):
-    """
-    Q-Learning algorithm for off-policy TD control using Function Approximation.
-    Finds the optimal greedy policy while following an epsilon-greedy policy.
-
-    Args:
-        sess: Tensorflow Session object
-        env: OpenAI environment
-        q_estimator: Estimator object used for the q values
-        target_estimator: Estimator object used for the targets
-        state_processor: A StateProcessor object
-        num_episodes: Number of episodes to run for
-        experiment_dir: Directory to save Tensorflow summaries in
-        replay_memory_size: Size of the replay memory
-        replay_memory_init_size: Number of random experiences to sampel when initializing 
-          the reply memory.
-        update_target_estimator_every: Copy parameters from the Q estimator to the 
-          target estimator every N steps
-        discount_factor: Gamma discount factor
-        epsilon_start: Chance to sample a random action when taking an action.
-          Epsilon is decayed over time and this is the start value
-        epsilon_end: The final minimum value of epsilon after decaying is done
-        epsilon_decay_steps: Number of steps to decay epsilon over
-        batch_size: Size of batches to sample from the replay memory
-        record_video_every: Record a video every N episodes
-
-    Returns:
-        An EpisodeStats object with two numpy arrays for episode_lengths and episode_rewards.
-    """
 
     Transition = namedtuple("Transition", ["state", "action", "reward", "next_state", "done"])
 
@@ -317,7 +224,6 @@ def deep_q_learning(sess,
             state = next_state
 
     priority = 1
-
 
     # Record videos
     # Add env Monitor wrapper

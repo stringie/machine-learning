@@ -1,2 +1,0 @@
-model_checkpoint_path: "/home/string/dev/machine-learning/experiments/Breakout-v0/checkpoints/model"
-all_model_checkpoint_paths: "/home/string/dev/machine-learning/experiments/Breakout-v0/checkpoints/model"
