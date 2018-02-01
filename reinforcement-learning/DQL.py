@@ -1,5 +1,15 @@
+"""
+    This algorithm is my personal botched implementation
+    of the fixed-q-iteration Dueling Double Deep Q-Network
+    with prioretized replay.
+    It represents a general artificial intelligence agent 
+    capable of producing super-human results in the realm
+    of "simple" games. The current implementation takes as
+    input game pixel, so it has yet to be fully abstract
+    when iterpeting the game "state".
+"""
 #%%
-# %matplotlib inline
+%matplotlib inline
 
 import gym
 from gym.wrappers import Monitor
@@ -84,8 +94,14 @@ class Estimator():
         gather_indices = tf.range(batch_size) * tf.shape(self.predictions)[1] + self.actions_pl
         self.action_predictions = tf.gather(tf.reshape(self.predictions, [-1]), gather_indices)
 
+        #sampling weights
+        self.weights = tf.placeholder(dtype=tf.float32)
+
+        #TD-error for priority readjustment
+        self.td_error = tf.subtract(self.y_pl, self.action_predictions)
+
         # Calcualte the loss
-        self.losses = tf.squared_difference(self.y_pl, self.action_predictions)
+        self.losses = tf.multiply(self.weights, tf.squared_difference(self.y_pl, self.action_predictions))
         self.loss = tf.reduce_mean(self.losses)
 
         # Optimizer Parameters from original paper
@@ -103,15 +119,15 @@ class Estimator():
     def predict(self, sess, s):
         return sess.run(self.predictions, { self.X_pl: s })
 
-    def update(self, sess, s, a, y):
-        feed_dict = { self.X_pl: s, self.y_pl: y, self.actions_pl: a }
-        summaries, global_step, _, loss, ps, aps = sess.run(
-            [self.summaries, tf.contrib.framework.get_global_step(), self.train_op, self.loss],
+    def update(self, sess, s, a, y, w):
+        feed_dict = { self.X_pl: s, self.y_pl: y, self.actions_pl: a, self.weights: w }
+        summaries, global_step, td_error, _, loss = sess.run(
+            [self.summaries, tf.contrib.framework.get_global_step(), self.td_error, self.train_op, self.loss],
             feed_dict)
         if self.summary_writer:
             self.summary_writer.add_summary(summaries, global_step)
 
-        return loss
+        return td_error, loss
 #%%
 class ModelParametersCopier():
     def __init__(self, estimator1, estimator2):
@@ -266,21 +282,12 @@ def deep_q_learning(sess,
             next_state = state_processor.process(sess, next_state)
             next_state = np.append(state[:,:,1:], np.expand_dims(next_state, 2), axis=2)
 
-            # If our replay memory is full, pop the first element
-            # if len(replay_memory) == replay_memory_size:
-            #     replay_memory.pop(0)
-
             # Save transition to replay memory
             replay_memory.add(Transition(state, action, reward, next_state, done), priority)   
 
             # Update statistics
             stats.episode_rewards[i_episode] += reward
             stats.episode_lengths[i_episode] = t
-
-            # Sample a minibatch from the replay memory
-            # samples = random.sample(replay_memory, batch_size)
-            # states_batch, action_batch, reward_batch, next_states_batch, done_batch = map(np.array, zip(*samples))
-
             if t % replay_period == 0:
 
                 samples, weights, indeces = replay_memory.select(beta)
@@ -293,13 +300,13 @@ def deep_q_learning(sess,
                 q_values_next_target = target_estimator.predict(sess, next_states_batch)
                 targets_batch = reward_batch + np.invert(done_batch).astype(np.float32) * discount_factor * q_values_next_target[np.arange(batch_size), best_actions]
 
-                # Update transition priority
-                replay_memory.priority_update(indeces, np.abs(targets_batch))
-
                 # Perform gradient descent update
                 states_batch = np.array(states_batch)
                 samplingWeights = np.array(weights)
-                loss = q_estimator.update(sess, states_batch, action_batch, targets_batch*samplingWeights)
+                td_error, loss = q_estimator.update(sess, states_batch, action_batch, targets_batch, samplingWeights)
+
+                # Update transition priority
+                replay_memory.priority_update(indeces, np.abs(td_error))
 
             if done:
                 break
