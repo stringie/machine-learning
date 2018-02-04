@@ -5,8 +5,8 @@ from scipy.optimize import fmin_l_bfgs_b
 from scipy.misc import imsave
 import numpy as np
 
-base_image_path = "/home/string/dev/machine-learning/supervised-learning/UniProject/us.jpg"
-style_reference_image_path = "/home/string/dev/machine-learning/supervised-learning/UniProject/mona.jpg"
+base_image_path = "/home/string/dev/machine-learning/supervised-learning/UniProject/res_at_iteration_0.png"
+style_reference_image_path = "/home/string/dev/machine-learning/supervised-learning/UniProject/2713670.jpg"
 result_prefix = "/home/string/dev/machine-learning/supervised-learning/UniProject/result/res"
 iterations = 1
 

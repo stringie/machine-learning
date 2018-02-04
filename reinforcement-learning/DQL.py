@@ -9,7 +9,7 @@
     when iterpeting the game "state".
 """
 #%%
-%matplotlib inline
+# %matplotlib inline
 
 import gym
 from gym.wrappers import Monitor
@@ -102,10 +102,10 @@ class Estimator():
 
         # Calcualte the loss
         self.losses = tf.multiply(self.weights, tf.squared_difference(self.y_pl, self.action_predictions))
-        self.loss = tf.reduce_mean(self.losses)
+        self.loss = tf.reduce_max(self.losses)
 
         # Optimizer Parameters from original paper
-        self.optimizer = tf.train.RMSPropOptimizer(0.00025, 0.99, 0.0, 1e-6)
+        self.optimizer = tf.train.AdamOptimizer(learning_rate=0.0001)
         self.train_op = self.optimizer.minimize(self.loss, global_step=tf.contrib.framework.get_global_step())
 
         # Summaries for Tensorboard
@@ -162,11 +162,11 @@ def deep_q_learning(sess,
                     experiment_dir,
                     replay_memory_size=50000,
                     replay_memory_init_size=50000,
-                    replay_period=5,
+                    replay_period=4,
                     update_target_estimator_every=10000,
                     discount_factor=0.99,
                     epsilon_start=1.0,
-                    epsilon_end=0.1,
+                    epsilon_end=0.01,
                     epsilon_decay_steps=500000,
                     batch_size=32,
                     record_video_every=50,
@@ -359,8 +359,8 @@ with tf.Session() as sess:
                                     replay_memory_init_size=50000,
                                     update_target_estimator_every=10000,
                                     epsilon_start=1.0,
-                                    epsilon_end=0.1,
-                                    epsilon_decay_steps=500000,
+                                    epsilon_end=0.05,
+                                    epsilon_decay_steps=42000,
                                     discount_factor=0.99,
                                     batch_size=32):
 

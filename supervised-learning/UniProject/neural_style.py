@@ -9,17 +9,10 @@ from keras.layers import Input
 from scipy.optimize import fmin_l_bfgs_b
 import time
 
-##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
-## Specify paths for 1) content image 2) style image and 3) generated image
-##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
-
 cImPath = '/home/string/dev/machine-learning/supervised-learning/UniProject/us.jpg'
 sImPath = '/home/string/dev/machine-learning/supervised-learning/UniProject/2713670.jpg'
 genImOutputPath = '/home/string/dev/machine-learning/supervised-learning/UniProject/result/res.jpg'
 
-##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
-## Image processing
-##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
 targetHeight = 512
 targetWidth = 512
 targetSize = (targetHeight, targetWidth)
@@ -27,21 +20,16 @@ targetSize = (targetHeight, targetWidth)
 cImageOrig = Image.open(cImPath)
 cImageSizeOrig = cImageOrig.size
 cImage = load_img(path=cImPath, target_size=targetSize)
-cImArr = img_to_array(cImage)
-cImArr = K.variable(preprocess_input(np.expand_dims(cImArr, axis=0)), dtype='float32')
+cImage = img_to_array(cImage)
+cImage = K.variable(preprocess_input(np.expand_dims(cImage, axis=0)), dtype='float32')
 
 sImage = load_img(path=sImPath, target_size=targetSize)
-sImArr = img_to_array(sImage)
-sImArr = K.variable(preprocess_input(np.expand_dims(sImArr, axis=0)), dtype='float32')
+sImage = img_to_array(sImage)
+sImage = K.variable(preprocess_input(np.expand_dims(sImage, axis=0)), dtype='float32')
 
 gIm0 = np.random.randint(256, size=(targetWidth, targetHeight, 3)).astype('float64')
 gIm0 = preprocess_input(np.expand_dims(gIm0, axis=0))
-
 gImPlaceholder = K.placeholder(shape=(1, targetWidth, targetHeight, 3))
-
-##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
-## Define loss and helper functions
-##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
 
 def get_feature_reps(x, layer_names, model):
     featMatrices = []
@@ -83,18 +71,12 @@ def get_total_loss(gImPlaceholder, alpha=1.0, beta=1000.0):
     return totalLoss
 
 def calculate_loss(gImArr):
-    """
-    Calculate total loss using K.function
-    """
     if gImArr.shape != (1, targetWidth, targetWidth, 3):
         gImArr = gImArr.reshape((1, targetWidth, targetHeight, 3))
     loss_fcn = K.function([gModel.input], [get_total_loss(gModel.input)])
     return loss_fcn([gImArr])[0].astype('float64')
 
 def get_grad(gImArr):
-    """
-    Calculate the gradient of the loss function with respect to the generated image
-    """
     if gImArr.shape != (1, targetWidth, targetHeight, 3):
         gImArr = gImArr.reshape((1, targetWidth, targetHeight, 3))
     grad_fcn = K.function([gModel.input], K.gradients(get_total_loss(gModel.input), [gModel.input]))
@@ -126,26 +108,20 @@ def save_original_size(x, target_size=cImageSizeOrig):
     return xIm
 
 tf_session = K.get_session()
-cModel = VGG16(include_top=False, weights='imagenet', input_tensor=cImArr)
-sModel = VGG16(include_top=False, weights='imagenet', input_tensor=sImArr)
+cModel = VGG16(include_top=False, weights='imagenet', input_tensor=cImage)
+sModel = VGG16(include_top=False, weights='imagenet', input_tensor=sImage)
 gModel = VGG16(include_top=False, weights='imagenet', input_tensor=gImPlaceholder)
 cLayerName = 'block4_conv2'
-sLayerNames = [
-                'block1_conv1',
-                'block2_conv1',
-                'block3_conv1',
-                'block4_conv1',
-                #'block5_conv1'
-                ]
+sLayerNames = ['block1_conv1', 'block2_conv1', 'block3_conv1', 'block4_conv1',]
 
-P = get_feature_reps(x=cImArr, layer_names=[cLayerName], model=cModel)[0]
-As = get_feature_reps(x=sImArr, layer_names=sLayerNames, model=sModel)
+P = get_feature_reps(x=cImage, layer_names=[cLayerName], model=cModel)[0]
+As = get_feature_reps(x=sImage, layer_names=sLayerNames, model=sModel)
 ws = np.ones(len(sLayerNames))/float(len(sLayerNames))
 
 iterations = 100
 x_val = gIm0.flatten()
 start = time.time()
-xopt, f_val, info= fmin_l_bfgs_b(calculate_loss, x_val, fprime=get_grad,
+xopt, f_val, info = fmin_l_bfgs_b(calculate_loss, x_val, fprime=get_grad,
                             maxiter=iterations, disp=True)
 xOut = postprocess_array(xopt)
 xIm = save_original_size(xOut)

@@ -11,9 +11,8 @@ import os
 get_ipython().magic(u'matplotlib inline')
 
 #%%
-from gridworlder import gameEnv
 
-env = gameEnv(partial=False,size=5)
+env = gym.envs.make("Breakout-v0")
 
 #%%
 class Qnetwork():
@@ -32,7 +31,7 @@ class Qnetwork():
         self.streamA = slim.flatten(self.streamAC)
         self.streamV = slim.flatten(self.streamVC)
         xavier_init = tf.contrib.layers.xavier_initializer()
-        self.AW = tf.Variable(xavier_init([h_size//2,env.actions]))
+        self.AW = tf.Variable(xavier_init([h_size//2,4]))
         self.VW = tf.Variable(xavier_init([h_size//2,1]))
         self.Advantage = tf.matmul(self.streamA,self.AW)
         self.Value = tf.matmul(self.streamV,self.VW)
@@ -44,7 +43,7 @@ class Qnetwork():
         #Below we obtain the loss by taking the sum of squares difference between the target and prediction Q values.
         self.targetQ = tf.placeholder(shape=[None],dtype=tf.float32)
         self.actions = tf.placeholder(shape=[None],dtype=tf.int32)
-        self.actions_onehot = tf.one_hot(self.actions,env.actions,dtype=tf.float32)
+        self.actions_onehot = tf.one_hot(self.actions,4,dtype=tf.float32)
         
         self.Q = tf.reduce_sum(tf.multiply(self.Qout, self.actions_onehot), axis=1)
         
