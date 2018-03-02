@@ -4,10 +4,6 @@ import numpy
 import random
 import sys
 
-envpath = "/home/string/dev/machine-learning/reinforcement-learning/envs"
-if envpath not in sys.path:
-  sys.path.append(envpath)
-
 import sum_tree
 
 class Experience(object):

@@ -169,7 +169,7 @@ def deep_q_learning(sess,
                     epsilon_end=0.01,
                     epsilon_decay_steps=500000,
                     batch_size=32,
-                    record_video_every=50,
+                    record_video_every=4200,
                     alpha=0.6,
                     beta=0.4):
 
